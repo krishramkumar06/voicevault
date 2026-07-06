@@ -17,9 +17,11 @@ struct VoiceMemoLibraryTests {
         defer { sqlite3_close(db) }
 
         // Titles are spread across columns exactly the way real libraries
-        // mix them: row 1 in the old ZCUSTOMLABEL, row 2 only in
-        // ZENCRYPTEDTITLE (plaintext despite the name — Tahoe's usual spot),
-        // row 3 untitled everywhere.
+        // mix them — verified against a real Tahoe library where
+        // ZCUSTOMLABEL holds an ISO timestamp (!) and the visible title
+        // lives in ZENCRYPTEDTITLE (plaintext despite the name). Row 1:
+        // legacy, title in ZCUSTOMLABEL. Row 2: Tahoe-style, timestamp in
+        // ZCUSTOMLABEL, real title in ZENCRYPTEDTITLE. Row 3: untitled.
         let schema = """
         CREATE TABLE ZCLOUDRECORDING (
             Z_PK INTEGER PRIMARY KEY,
@@ -28,7 +30,7 @@ struct VoiceMemoLibraryTests {
         );
         INSERT INTO ZCLOUDRECORDING VALUES
             (1, 'morning walk idea', NULL, 773000000.0, 95.5, 'Recordings/20250601 093000.m4a', 'UUID-AAA'),
-            (2, NULL, 'call with Suren', 774000000.0, 305.2, 'Recordings/20250612 141500.m4a', 'UUID-BBB'),
+            (2, '2026-07-06T11:37:55Z', 'call with Suren', 774000000.0, 305.2, 'Recordings/20250612 141500.m4a', 'UUID-BBB'),
             (3, NULL, NULL, 775000000.0, 12.0, 'Recordings/20250624 081000.m4a', 'UUID-CCC');
         """
         #expect(sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK)

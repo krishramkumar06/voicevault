@@ -64,8 +64,33 @@ private struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                HStack {
+                    Button("Save diagnostic report") { saveDiagnostics() }
+                    if let diagnosticsPath {
+                        Text("Saved to \(diagnosticsPath)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                    }
+                }
+                Text("If recordings show the wrong titles, this writes a report about your recordings database (titles and structure only, never audio or transcripts) so the problem can be tracked down. It stays on your Mac.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    @State private var diagnosticsPath: String? = nil
+
+    private func saveDiagnostics() {
+        guard let folder = state.settings.inputFolder else { return }
+        let report = VoiceMemoLibrary.diagnosticReport(for: folder)
+        let url = URL(fileURLWithPath: "/tmp/voicevault-diagnostics.txt")
+        try? report.write(to: url, atomically: true, encoding: .utf8)
+        diagnosticsPath = url.path
     }
 }
 

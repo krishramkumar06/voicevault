@@ -67,13 +67,20 @@ public enum VoiceMemoLibrary {
         let available = columnNames(db: db, table: "ZCLOUDRECORDING")
         guard available.contains("ZPATH") else { throw LibraryError.notAVoiceMemosLibrary }
 
-        // The user-visible title moves between columns across macOS releases
-        // (ZENCRYPTEDTITLE is plaintext despite the name, and on Tahoe it's
-        // often the only one filled in). Select every candidate and coalesce
-        // per row — per table is not enough, because a library mixes rows
-        // written by different OS versions.
-        let titleColumns = ["ZCUSTOMLABEL", "ZENCRYPTEDTITLE", "ZCUSTOMLABELFORSORTING"]
-            .filter(available.contains)
+        // The user-visible title moves between columns across macOS releases,
+        // and on Tahoe the columns actively lie: ZCUSTOMLABEL holds an ISO
+        // timestamp string, while the real title sits in ZENCRYPTEDTITLE
+        // (plaintext despite the name) and ZCUSTOMLABELFORSORTING. Diagnosed
+        // against a real 476-recording library. Coalesce per row, best
+        // column first; unknown future columns are caught by the
+        // LABEL/TITLE/NAME sweep, and timestamp-shaped values are rejected
+        // by isPlausibleTitle.
+        let knownTitleColumns = ["ZENCRYPTEDTITLE", "ZCUSTOMLABELFORSORTING", "ZCUSTOMLABEL"]
+        let extraTitleColumns = available
+            .filter { $0.contains("LABEL") || $0.contains("TITLE") || $0.contains("NAME") }
+            .subtracting(knownTitleColumns)
+            .sorted()
+        let titleColumns = knownTitleColumns.filter(available.contains) + extraTitleColumns
         var columns = ["ZPATH"]
         columns.append(contentsOf: titleColumns)
         let dateColumn = available.contains("ZDATE") ? "ZDATE" : nil
@@ -101,7 +108,11 @@ public enum VoiceMemoLibrary {
             var column: Int32 = 1
             var title: String? = nil
             for _ in titleColumns {
-                if title == nil { title = text(column) }
+                // Some columns have carried encrypted bytes in some OS
+                // versions — accept only values that look like human text.
+                if title == nil, let candidate = text(column), isPlausibleTitle(candidate) {
+                    title = candidate
+                }
                 column += 1
             }
             var created = Date()
@@ -133,6 +144,17 @@ public enum VoiceMemoLibrary {
         return memos.sorted { $0.created > $1.created }
     }
 
+    static func isPlausibleTitle(_ s: String) -> Bool {
+        guard !s.isEmpty, s.count < 500, !s.unicodeScalars.contains(where: {
+            CharacterSet.controlCharacters.contains($0)
+        }) else { return false }
+        // Tahoe stuffs ISO timestamps into ZCUSTOMLABEL; a timestamp is
+        // metadata, not a title.
+        if s.range(of: #"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?(\.\d+)?Z?$"#,
+                   options: .regularExpression) != nil { return false }
+        return true
+    }
+
     private static func columnNames(db: OpaquePointer, table: String) -> Set<String> {
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, "PRAGMA table_info(\(table))", -1, &stmt, nil) == SQLITE_OK else {
@@ -144,6 +166,99 @@ public enum VoiceMemoLibrary {
             if let c = sqlite3_column_text(stmt, 1) { names.insert(String(cString: c)) }
         }
         return names
+    }
+
+    // MARK: - Diagnostics
+
+    /// A plain-text report of what's actually inside a recordings folder —
+    /// files, database tables, and where titles live. Written locally so a
+    /// user can help debug title problems without exposing recordings.
+    public static func diagnosticReport(for folder: URL) -> String {
+        var out: [String] = ["VoiceVault diagnostic report", "folder: \(folder.path)", ""]
+
+        let contents = (try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.fileSizeKey], options: [])) ?? []
+        out.append("── files (\(contents.count)):")
+        for url in contents.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            out.append("  \(url.lastPathComponent)  (\(size) bytes)")
+        }
+        out.append("")
+
+        for dbURL in contents where dbURL.pathExtension == "db" {
+            out.append("── database: \(dbURL.lastPathComponent)")
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("voicevault-diag-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            for suffix in ["", "-wal", "-shm"] {
+                let src = URL(fileURLWithPath: dbURL.path + suffix)
+                if FileManager.default.fileExists(atPath: src.path) {
+                    try? FileManager.default.copyItem(
+                        at: src, to: tempDir.appendingPathComponent(src.lastPathComponent))
+                }
+            }
+            var handle: OpaquePointer?
+            let tempDB = tempDir.appendingPathComponent(dbURL.lastPathComponent)
+            guard sqlite3_open_v2(tempDB.path, &handle, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
+                  let db = handle else {
+                out.append("  (couldn't open)")
+                continue
+            }
+            defer { sqlite3_close(db) }
+
+            var stmt: OpaquePointer?
+            var tables: [String] = []
+            if sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type='table'", -1, &stmt, nil) == SQLITE_OK {
+                while sqlite3_step(stmt) == SQLITE_ROW {
+                    if let c = sqlite3_column_text(stmt, 0) { tables.append(String(cString: c)) }
+                }
+            }
+            sqlite3_finalize(stmt)
+
+            for table in tables.sorted() {
+                var count = 0
+                if sqlite3_prepare_v2(db, "SELECT COUNT(*) FROM \"\(table)\"", -1, &stmt, nil) == SQLITE_OK,
+                   sqlite3_step(stmt) == SQLITE_ROW {
+                    count = Int(sqlite3_column_int(stmt, 0))
+                }
+                sqlite3_finalize(stmt)
+                let columns = columnNames(db: db, table: table).sorted().joined(separator: ", ")
+                out.append("  table \(table) (\(count) rows): \(columns)")
+
+                // For recording tables, show which columns actually hold the
+                // titles, with a few sample values.
+                if table.contains("RECORDING"), count > 0 {
+                    let titleish = columnNames(db: db, table: table)
+                        .filter { $0.contains("LABEL") || $0.contains("TITLE") || $0.contains("NAME") || $0 == "ZPATH" }
+                        .sorted()
+                    for col in titleish {
+                        var samples: [String] = []
+                        var filled = 0
+                        let sql = "SELECT \"\(col)\" FROM \"\(table)\" ORDER BY Z_PK DESC LIMIT 5"
+                        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+                            while sqlite3_step(stmt) == SQLITE_ROW {
+                                if let c = sqlite3_column_text(stmt, 0) {
+                                    let v = String(cString: c)
+                                    if !v.isEmpty {
+                                        filled += 1
+                                        samples.append(String(v.prefix(48)))
+                                    } else {
+                                        samples.append("(empty)")
+                                    }
+                                } else {
+                                    samples.append("(null)")
+                                }
+                            }
+                        }
+                        sqlite3_finalize(stmt)
+                        out.append("    \(col): last-5 = [\(samples.joined(separator: " | "))]")
+                    }
+                }
+            }
+            out.append("")
+        }
+        return out.joined(separator: "\n")
     }
 
     // MARK: - Plain folder of audio files
