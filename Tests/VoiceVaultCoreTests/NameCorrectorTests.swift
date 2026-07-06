@@ -92,9 +92,9 @@ struct NameCorrectorTests {
     }
 
     @Test func multiWordNamesMatchFuzzily() {
-        let people = [PersonName(name: "Isabel Matos")]
-        let result = NameCorrector(people: people).correct("I told Isabelle Mattos about it.")
-        #expect(result.text == "I told Isabel Matos about it.")
+        let people = [PersonName(name: "Mikhail Sorokin")]
+        let result = NameCorrector(people: people).correct("I told Mikail Sorokhin about it.")
+        #expect(result.text == "I told Mikhail Sorokin about it.")
     }
 
     @Test func emptyPeopleListChangesNothing() {

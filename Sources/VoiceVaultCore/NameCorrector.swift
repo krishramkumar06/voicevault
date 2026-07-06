@@ -59,7 +59,7 @@ public struct NameCorrector: Sendable {
             guard k >= 1, tokens.count >= 1 else { continue }
 
             // Single-token aliases can also stand in for multi-token names
-            // ("Isa" for "Isabel Matos"), so check 1-grams for aliases too.
+            // ("Misha" for "Mikhail Sorokin"), so check 1-grams for aliases too.
             var windowSizes = Set([k, 1])
             for alias in person.aliases {
                 windowSizes.insert(alias.split(separator: " ").count)

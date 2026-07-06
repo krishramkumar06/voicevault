@@ -44,7 +44,7 @@ public struct MemoSummary: Codable, Hashable, Sendable {
 /// A person the user has told us about, with known mishearings.
 public struct PersonName: Codable, Hashable, Sendable, Identifiable {
     public var id: UUID
-    /// Canonical spelling, e.g. "Suren" or "Isabel Matos".
+    /// Canonical spelling, e.g. "Suren" or "Mikhail Sorokin".
     public var name: String
     /// Mishearings seen in the wild, e.g. "Soren". Always corrected on exact match.
     public var aliases: [String]
