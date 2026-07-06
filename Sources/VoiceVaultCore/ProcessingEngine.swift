@@ -108,7 +108,8 @@ public struct ProcessingEngine: Sendable {
 
         var markdown = note.markdown
         if settings.copyAudioIntoVault, note.memo.isAvailable {
-            let audioName = (filename as NSString).deletingPathExtension + ".m4a"
+            let audioName = (filename as NSString).deletingPathExtension
+                + "." + (note.memo.url.pathExtension.isEmpty ? "m4a" : note.memo.url.pathExtension)
             let audioTarget = vault.appendingPathComponent(audioName)
             if !FileManager.default.fileExists(atPath: audioTarget.path) {
                 try? FileManager.default.copyItem(at: note.memo.url, to: audioTarget)

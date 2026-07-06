@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="128" align="right" alt="VoiceVault icon: a waveform becoming lines of text">
+
 # VoiceVault
 
 **Turn your Apple Voice Memos into a searchable, linked Obsidian vault — entirely on your Mac, no terminal, nothing leaves your machine.**
