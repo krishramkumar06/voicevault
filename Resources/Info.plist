@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>VoiceVault</string>
+    <key>CFBundleDisplayName</key>
+    <string>VoiceVault</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.krishramkumar.voicevault</string>
+    <key>CFBundleExecutable</key>
+    <string>VoiceVault</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>26.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.productivity</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>MIT License. Built to solve the author's own problem; shared for anyone with the same one.</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>VoiceVault transcribes your voice memos entirely on this Mac using Apple's on-device speech recognition.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- Only for talking to the local Ollama server on 127.0.0.1. -->
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+</dict>
+</plist>
