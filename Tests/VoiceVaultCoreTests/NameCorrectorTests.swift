@@ -39,6 +39,28 @@ struct NameCorrectorTests {
         #expect(result.corrections.isEmpty)
     }
 
+    @Test func contractionsAreNeverCorrected() {
+        // Regression: "I'm" was being corrected to "Isa" in real transcripts
+        // (same first letter, tiny edit distance, near-phonetic keys).
+        let text = "I'm a really big fan. I'm super young. It's what I've wanted."
+        let result = NameCorrector(people: people).correct(text)
+        #expect(result.text == text)
+        #expect(result.corrections.isEmpty)
+    }
+
+    @Test func curlyApostropheContractionsAreNeverCorrected() {
+        let text = "I\u{2019}m a really big fan and that\u{2019}s fine."
+        let result = NameCorrector(people: people).correct(text)
+        #expect(result.text == text)
+    }
+
+    @Test func shortNamesGetNoNearPhoneticSlack() {
+        // Two edits on a three-letter name is a different word, not a
+        // mishearing: "Ida" must not become "Isa".
+        let result = NameCorrector(people: people).correct("Ida was there too.")
+        #expect(result.text == "Ida was there too.")
+    }
+
     @Test func commonWordsAreNeverFuzzyMatched() {
         // "sure" is phonetically close-ish to "Suren" but is an everyday word.
         let text = "Sure, that sounds good."

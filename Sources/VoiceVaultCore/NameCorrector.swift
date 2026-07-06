@@ -125,10 +125,13 @@ public struct NameCorrector: Sendable {
 
     /// True when `token` plausibly *is* `target` misheard.
     static func fuzzyTokenMatch(_ token: String, _ target: String) -> Bool {
-        let t = token.lowercased()
-        let p = target.lowercased()
+        let t = token.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+        let p = target.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if t == p { return true }
         if t.count < 2 || CommonWords.contains(t) { return false }
+        // Contractions ("I'm", "that's") are never mishearings of a name.
+        // Only fuzzy-match an apostrophe if the name itself has one (O'Brien).
+        if t.contains("'") != p.contains("'") { return false }
         guard t.first == p.first else { return false }
 
         let surfaceDistance = damerauLevenshtein(t, p)
@@ -136,11 +139,14 @@ public struct NameCorrector: Sendable {
         let mp = metaphone(p)
 
         if mt == mp, surfaceDistance <= max(1, p.count / 3) { return true }
-        // Near-phonetic: keys within one edit — but if the token's key merely
-        // *extends* the target's ("sirens" SRNS vs Suren SRN), it's probably a
-        // different word or a plural, not a mishearing. Internal shifts like
-        // Sasnowski/Sosnovsky (SSNSK/SSNFSK) still pass.
-        if damerauLevenshtein(mt, mp) <= 1,
+        // Near-phonetic: keys within one edit. This looser rule exists for
+        // consonant shifts inside long names (Sasnowski/Sosnovsky,
+        // SSNSK/SSNFSK) and is too dangerous for short ones — one key edit
+        // in a 3-letter name is a different word ("Ida" is not "Isa").
+        // A token key that merely *extends* the target's ("sirens" SRNS vs
+        // Suren SRN) is likewise a different word or plural, not a mishearing.
+        if p.count >= 6,
+           damerauLevenshtein(mt, mp) <= 1,
            !(mt.hasPrefix(mp) && mt.count > mp.count),
            surfaceDistance <= max(2, p.count / 3) { return true }
         return false

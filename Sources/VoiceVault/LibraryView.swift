@@ -13,18 +13,20 @@ struct LibraryView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let error = state.libraryError {
-                errorBanner(error)
-            }
+        NavigationStack {
+            VStack(spacing: 0) {
+                if let error = state.libraryError {
+                    errorBanner(error)
+                }
 
-            if state.memos.isEmpty && state.libraryError == nil {
-                emptyState
-            } else {
-                memoList
-            }
+                if state.memos.isEmpty && state.libraryError == nil {
+                    emptyState
+                } else {
+                    memoList
+                }
 
-            bottomBar
+                bottomBar
+            }
         }
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search titles")
         .toolbar {

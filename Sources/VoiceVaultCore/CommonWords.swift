@@ -12,6 +12,16 @@ enum CommonWords {
     }
 
     private static let words: Set<String> = [
+        // contractions (tokens keep their apostrophes)
+        "i'm", "i've", "i'll", "i'd", "you're", "you've", "you'll", "you'd",
+        "we're", "we've", "we'll", "we'd", "they're", "they've", "they'll",
+        "they'd", "he's", "he'll", "he'd", "she's", "she'll", "she'd", "it's",
+        "it'll", "that's", "that'll", "there's", "here's", "what's", "who's",
+        "where's", "when's", "how's", "why's", "let's", "don't", "doesn't",
+        "didn't", "can't", "couldn't", "won't", "wouldn't", "shouldn't",
+        "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't",
+        "mustn't", "needn't", "ain't", "y'all", "gonna", "wanna", "gotta",
+        "kinda", "sorta", "cause", "'cause",
         // function words
         "a", "an", "the", "and", "or", "but", "nor", "so", "yet", "for", "of",
         "in", "on", "at", "by", "to", "up", "off", "out", "over", "under",
