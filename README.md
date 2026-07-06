@@ -93,7 +93,7 @@ The tags and people are deliberately prefixed `x-suggested-` — they're the mod
 
 Apple's transcriber is very good at one voice and very bad at your friends. My friend Suren comes out as "Soren," Isa becomes "Issa," Sosnovsky becomes "Sasnowski" — which doesn't just look wrong, it breaks retrieval, because a `[[Suren]]` link and a "Soren" transcript never find each other.
 
-VoiceVault fixes this with a **People list** (Settings → People). Add the names you actually say, and three things happen:
+VoiceVault fixes this with a **People list** (Settings → People). Add the names you actually say, **spelled correctly** — you're teaching it the right answer, not the mistakes — and three things happen:
 
 1. The names are fed to Apple's recognizer as hints before transcription.
 2. A conservative phonetic pass corrects near-miss spellings in the transcript. It matches on sound and edit distance, refuses to touch everyday English words (so "is a" can never become "Isa"), and logs every fix in the note's frontmatter — you always see what changed.

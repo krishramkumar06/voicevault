@@ -12,7 +12,9 @@ public struct ProcessingEngine: Sendable {
 
     public enum Phase: Sendable {
         case transcribing
-        case summarizing
+        /// `charactersGenerated` grows as the model streams — surface it,
+        /// because a silent multi-minute generation looks like a hang.
+        case summarizing(charactersGenerated: Int)
     }
 
     /// Processes one memo. Never throws for summary failures — a memo with a
@@ -39,7 +41,7 @@ public struct ProcessingEngine: Sendable {
 
         let corrected = NameCorrector(people: settings.people).correct(rawTranscript)
 
-        phase?(.summarizing)
+        phase?(.summarizing(charactersGenerated: 0))
         var summary: MemoSummary? = nil
         var summaryError: String? = nil
         do {
@@ -48,7 +50,8 @@ public struct ProcessingEngine: Sendable {
                 systemPrompt: settings.systemPrompt,
                 model: settings.model,
                 peopleHint: settings.people.map(\.name),
-                contextWindow: settings.contextWindow)
+                contextWindow: Self.contextWindow(for: corrected.text, ceiling: settings.contextWindow),
+                progress: { chars in phase?(.summarizing(charactersGenerated: chars)) })
         } catch {
             summaryError = error.localizedDescription
         }
@@ -67,6 +70,20 @@ public struct ProcessingEngine: Sendable {
             corrections: corrected.corrections,
             summaryFailed: summary == nil,
             summaryError: summaryError)
+    }
+
+    /// Right-sizes the model's context to the transcript. A full 16k window
+    /// makes every summary pay long-memo costs (slower load, slower prompt
+    /// eval); a short memo fits comfortably in 4k. Never exceeds `ceiling`,
+    /// never goes below 4096, and keeps ~2k headroom for the system prompt
+    /// and the generated JSON. Truncation is the one unforgivable failure —
+    /// estimates are deliberately pessimistic (3 chars/token).
+    static func contextWindow(for transcript: String, ceiling: Int) -> Int {
+        let estimatedTokens = transcript.count / 3 + 2048
+        for candidate in [4096, 8192, 16384, 32768] where candidate >= estimatedTokens {
+            return Swift.min(candidate, Swift.max(ceiling, 4096))
+        }
+        return Swift.max(ceiling, 4096)
     }
 
     private func renderOptions() -> NoteRenderer.Options {

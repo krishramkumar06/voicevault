@@ -67,10 +67,15 @@ public enum VoiceMemoLibrary {
         let available = columnNames(db: db, table: "ZCLOUDRECORDING")
         guard available.contains("ZPATH") else { throw LibraryError.notAVoiceMemosLibrary }
 
-        let titleColumn = ["ZCUSTOMLABEL", "ZENCRYPTEDTITLE", "ZCUSTOMLABELFORSORTING"]
-            .first(where: available.contains)
+        // The user-visible title moves between columns across macOS releases
+        // (ZENCRYPTEDTITLE is plaintext despite the name, and on Tahoe it's
+        // often the only one filled in). Select every candidate and coalesce
+        // per row — per table is not enough, because a library mixes rows
+        // written by different OS versions.
+        let titleColumns = ["ZCUSTOMLABEL", "ZENCRYPTEDTITLE", "ZCUSTOMLABELFORSORTING"]
+            .filter(available.contains)
         var columns = ["ZPATH"]
-        if let titleColumn { columns.append(titleColumn) }
+        columns.append(contentsOf: titleColumns)
         let dateColumn = available.contains("ZDATE") ? "ZDATE" : nil
         if let dateColumn { columns.append(dateColumn) }
         let durationColumn = available.contains("ZDURATION") ? "ZDURATION" : nil
@@ -95,7 +100,10 @@ public enum VoiceMemoLibrary {
             guard let path = text(0) else { continue }
             var column: Int32 = 1
             var title: String? = nil
-            if titleColumn != nil { title = text(column); column += 1 }
+            for _ in titleColumns {
+                if title == nil { title = text(column) }
+                column += 1
+            }
             var created = Date()
             if dateColumn != nil {
                 // Core Data timestamps count from 2001-01-01.

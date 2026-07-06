@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import VoiceVaultCore
 
 /// Where a memo sits in its journey from recording to vault note.
@@ -28,6 +29,8 @@ final class AppState {
     var isProcessing = false
     var processingProgress: (done: Int, total: Int) = (0, 0)
     private var processingTask: Task<Void, Never>? = nil
+    /// Start time and streamed character count of the summary in flight.
+    private var summarizeProgress: (start: Date, chars: Int)? = nil
 
     // Local AI engine state, shared by onboarding and settings.
     let ollamaManager: OllamaManager
@@ -44,6 +47,41 @@ final class AppState {
         if let s = statuses[memo.id] { return s }
         if let filename = settings.exported[memo.id] { return .saved(filename) }
         return .new
+    }
+
+    // MARK: - Audio preview
+
+    /// Which memo is currently playing, if any.
+    var previewingID: String? = nil
+    private var previewPlayer: AVAudioPlayer? = nil
+    private var previewWatcher: Task<Void, Never>? = nil
+
+    /// Plays a memo so the user can jog their memory before processing;
+    /// tapping again (or another memo) stops it.
+    func togglePreview(_ memo: Memo) {
+        let wasPlaying = previewingID == memo.id
+        stopPreview()
+        guard !wasPlaying else { return }
+        guard let player = try? AVAudioPlayer(contentsOf: memo.url) else { return }
+        previewPlayer = player
+        previewingID = memo.id
+        player.play()
+        previewWatcher = Task { [weak self] in
+            while let self, let player = self.previewPlayer, player.isPlaying {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            if let self, self.previewingID == memo.id, self.previewPlayer?.isPlaying != true {
+                self.stopPreview()
+            }
+        }
+    }
+
+    func stopPreview() {
+        previewWatcher?.cancel()
+        previewWatcher = nil
+        previewPlayer?.stop()
+        previewPlayer = nil
+        previewingID = nil
     }
 
     // MARK: - Library
@@ -130,13 +168,38 @@ final class AppState {
             for (index, memo) in targets.enumerated() {
                 guard let self, !Task.isCancelled else { break }
                 self.statuses[memo.id] = .processing("Transcribing…")
+                self.summarizeProgress = nil
+
+                // A local model can take minutes on a long memo, and the
+                // model streams nothing while it reads the transcript. The
+                // ticker keeps the clock moving so slow never looks stuck.
+                let ticker = Task { @MainActor [weak self] in
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        guard let self, let start = self.summarizeProgress?.start else { continue }
+                        let chars = self.summarizeProgress?.chars ?? 0
+                        let elapsed = Int(Date().timeIntervalSince(start))
+                        var label = "Summarizing… \(elapsed / 60):" + String(format: "%02d", elapsed % 60)
+                        label += chars > 0 ? " · \(chars / 5) words" : " · thinking"
+                        self.statuses[memo.id] = .processing(label)
+                    }
+                }
+                defer { ticker.cancel() }
+
                 do {
                     let note = try await engine.process(memo) { phase in
                         Task { @MainActor [weak self] in
-                            self?.statuses[memo.id] = .processing(
-                                phase == .transcribing ? "Transcribing…" : "Summarizing…")
+                            guard let self else { return }
+                            switch phase {
+                            case .transcribing:
+                                self.statuses[memo.id] = .processing("Transcribing…")
+                            case .summarizing(let chars):
+                                let start = self.summarizeProgress?.start ?? Date()
+                                self.summarizeProgress = (start, chars)
+                            }
                         }
                     }
+                    self.summarizeProgress = nil
                     if autoSave {
                         let filename = try engine.write(note)
                         self.settings.exported[memo.id] = filename
@@ -160,8 +223,9 @@ final class AppState {
     func cancelProcessing() {
         processingTask?.cancel()
         isProcessing = false
-        for (id, status) in statuses where status == .processing("Transcribing…") || status == .processing("Summarizing…") {
-            statuses[id] = .new
+        summarizeProgress = nil
+        for (id, status) in statuses {
+            if case .processing = status { statuses[id] = .new }
         }
     }
 

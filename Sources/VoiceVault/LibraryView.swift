@@ -205,6 +205,18 @@ private struct MemoRow: View {
                 .disabled(!memo.isAvailable)
                 .accessibilityLabel("Select \(memo.title)")
 
+            Button {
+                state.togglePreview(memo)
+            } label: {
+                Image(systemName: state.previewingID == memo.id ? "stop.circle.fill" : "play.circle")
+                    .font(.system(size: 17))
+                    .foregroundStyle(state.previewingID == memo.id ? Identity.coral : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(!memo.isAvailable)
+            .help(state.previewingID == memo.id ? "Stop" : "Listen to jog your memory")
+            .accessibilityLabel(state.previewingID == memo.id ? "Stop playback" : "Play \(memo.title)")
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(memo.title)
                     .fontWeight(.medium)

@@ -173,16 +173,19 @@ private struct PeopleSettings: View {
         @Bindable var state = state
         Form {
             Section {
-                Text("People whose names come up in your memos. VoiceVault fixes mishearings of these names in transcripts (conservatively — everyday words are never touched) and uses the right spelling for [[links]]. Add a known mishearing if the transcriber keeps inventing one.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Add each person by their **correct spelling** — that's what transcripts and [[links]] will use. VoiceVault then fixes anything in a transcript that sounds close (“Soren” becomes Suren). It's deliberately cautious: everyday words are never touched, and every fix is shown at review.")
+                    Text("If the transcriber keeps producing one specific wrong spelling, add that **mishearing** under the person — it will then always be corrected on sight.")
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
 
-            Section("Names") {
+            Section("People (correct spellings)") {
                 ForEach($state.settings.people) { $person in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            TextField("Name", text: $person.name)
+                            TextField("Correct name", text: $person.name)
                                 .fontWeight(.medium)
                             Button {
                                 state.settings.people.removeAll { $0.id == person.id }
@@ -198,7 +201,7 @@ private struct PeopleSettings: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
-                            TextField("Add a mishearing, e.g. Soren",
+                            TextField("Add a mishearing the transcriber keeps making, e.g. Soren",
                                       text: aliasBinding(for: person.id))
                                 .font(.caption)
                                 .textFieldStyle(.plain)
@@ -209,7 +212,7 @@ private struct PeopleSettings: View {
                 }
 
                 HStack {
-                    TextField("Add a person…", text: $newName)
+                    TextField("Add a person (correct spelling)…", text: $newName)
                         .onSubmit(addPerson)
                     Button("Add", action: addPerson)
                         .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -346,10 +346,10 @@ private struct PeopleStep: View {
             stepHeader(
                 symbol: "person.2",
                 title: "Teach it your people",
-                subtitle: "Transcribers mangle names — Suren becomes “Soren”, Isa becomes “Issa”. List the people you actually talk about and VoiceVault fixes their names in transcripts and links them properly in your vault. Add more any time in Settings.")
+                subtitle: "Transcribers mangle names — Suren comes out “Soren”, Isa comes out “Issa”. Add names here spelled the way you want them: the CORRECT spelling, not the mistakes. VoiceVault listens for anything that sounds close and fixes the transcriber's guesses for you. (If one specific wrong spelling keeps coming back, you can teach it that too, in Settings → People.)")
 
             HStack {
-                TextField("A name you often mention, e.g. Suren", text: $newName)
+                TextField("A name, spelled right — e.g. Suren", text: $newName)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 320)
                     .onSubmit(addName)

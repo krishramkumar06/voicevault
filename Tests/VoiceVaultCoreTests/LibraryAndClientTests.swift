@@ -16,16 +16,20 @@ struct VoiceMemoLibraryTests {
         #expect(sqlite3_open(dbPath, &db) == SQLITE_OK)
         defer { sqlite3_close(db) }
 
+        // Titles are spread across columns exactly the way real libraries
+        // mix them: row 1 in the old ZCUSTOMLABEL, row 2 only in
+        // ZENCRYPTEDTITLE (plaintext despite the name — Tahoe's usual spot),
+        // row 3 untitled everywhere.
         let schema = """
         CREATE TABLE ZCLOUDRECORDING (
             Z_PK INTEGER PRIMARY KEY,
-            ZCUSTOMLABEL TEXT, ZDATE FLOAT, ZDURATION FLOAT,
+            ZCUSTOMLABEL TEXT, ZENCRYPTEDTITLE TEXT, ZDATE FLOAT, ZDURATION FLOAT,
             ZPATH TEXT, ZUNIQUEID TEXT
         );
         INSERT INTO ZCLOUDRECORDING VALUES
-            (1, 'morning walk idea', 773000000.0, 95.5, 'Recordings/20250601 093000.m4a', 'UUID-AAA'),
-            (2, 'call with Suren', 774000000.0, 305.2, 'Recordings/20250612 141500.m4a', 'UUID-BBB'),
-            (3, NULL, 775000000.0, 12.0, 'Recordings/20250624 081000.m4a', 'UUID-CCC');
+            (1, 'morning walk idea', NULL, 773000000.0, 95.5, 'Recordings/20250601 093000.m4a', 'UUID-AAA'),
+            (2, NULL, 'call with Suren', 774000000.0, 305.2, 'Recordings/20250612 141500.m4a', 'UUID-BBB'),
+            (3, NULL, NULL, 775000000.0, 12.0, 'Recordings/20250624 081000.m4a', 'UUID-CCC');
         """
         #expect(sqlite3_exec(db, schema, nil, nil, nil) == SQLITE_OK)
 
@@ -45,6 +49,9 @@ struct VoiceMemoLibraryTests {
         #expect(memos.count == 3)
         // Sorted newest first.
         #expect(memos[0].id == "UUID-CCC")
+
+        let walk = try #require(memos.first { $0.id == "UUID-AAA" })
+        #expect(walk.title == "morning walk idea")
 
         let suren = try #require(memos.first { $0.id == "UUID-BBB" })
         #expect(suren.title == "call with Suren")
@@ -92,6 +99,24 @@ struct OllamaClientTests {
         #expect(throws: (any Error).self) {
             try OllamaClient.parseChatResponse(Data(body.utf8))
         }
+    }
+}
+
+@Suite("Context sizing")
+struct ContextWindowTests {
+    @Test func shortMemosGetSmallWindows() {
+        let short = String(repeating: "a word ", count: 100) // ~700 chars
+        #expect(ProcessingEngine.contextWindow(for: short, ceiling: 16384) == 4096)
+    }
+
+    @Test func longMemosGetBigWindowsUpToCeiling() {
+        let long = String(repeating: "a word ", count: 8000) // ~56k chars ≈ 18k tokens
+        #expect(ProcessingEngine.contextWindow(for: long, ceiling: 16384) == 16384)
+    }
+
+    @Test func mediumMemosLandBetween() {
+        let medium = String(repeating: "a word ", count: 2500) // ~17.5k chars ≈ 6k+2k tokens
+        #expect(ProcessingEngine.contextWindow(for: medium, ceiling: 16384) == 8192)
     }
 }
 
